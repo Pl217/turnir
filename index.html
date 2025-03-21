@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="sr-Cyrl-RS">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Бетон Лига</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #f4f4f9;
+      }
+      .container {
+        max-width: 900px;
+        margin: auto;
+        padding: 20px;
+        text-align: center;
+      }
+      h1,
+      h2 {
+        color: #333;
+      }
+      input,
+      button {
+        padding: 10px;
+        margin: 5px 0;
+        font-size: 16px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        box-sizing: border-box;
+      }
+      button {
+        background-color: #007bff;
+        color: white;
+        cursor: pointer;
+      }
+      button:hover {
+        background-color: #0056b3;
+      }
+      table,
+      th,
+      td {
+        border: 1px solid #ddd;
+      }
+      th,
+      td {
+        text-align: center;
+        padding: 8px;
+      }
+      tr:nth-child(even) {
+        background-color: #f9f9f9;
+      }
+      .hidden {
+        display: none;
+      }
+      .fixture-row {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+      }
+      .fixture-row .bold {
+        flex: 1;
+      }
+      .fixture-row .home {
+        text-align: right;
+      }
+      .fixture-row .away {
+        text-align: left;
+      }
+      .fixture-row input {
+        width: 50px;
+        text-align: center;
+      }
+      .fixture-row span {
+        flex-shrink: 0;
+      }
+      .fixture-row .dash {
+        flex-grow: 0;
+      }
+      .team-setup input {
+        flex-grow: 1;
+      }
+      .team-setup {
+        margin-bottom: 10px;
+      }
+      .fixture-container {
+        text-align: center;
+      }
+      .reset-button {
+        background-color: #f8d7da;
+        color: #721c24;
+        border-color: #f5c6cb;
+      }
+      .reset-button:hover {
+        background-color: #f5c6cb;
+        color: #721c24;
+      }
+      .bold {
+        font-weight: bold;
+      }
+      .hidden {
+        display: none;
+      }
+      summary {
+        cursor: pointer;
+      }
+      @media (max-width: 600px) {
+        th,
+        td {
+          font-size: 0.9rem;
+        }
+      }
+      table {
+        border-collapse: collapse;
+        background-color: white;
+        margin: 0 auto;
+      }
+      thead {
+        background-color: #ccc;
+      }
+      .table-container {
+        margin-bottom: 10rem;
+      }
+      @media (max-width: 600px) {
+        .table-container {
+          overflow-x: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Бетон Лига</h1>
+
+      <div id="setup">
+        <h2>Подешавање екипа</h2>
+        <input
+          type="number"
+          id="teamCount"
+          min="4"
+          max="5"
+          placeholder="Унеси број екипа (4-5)"
+        />
+        <button onclick="generateTeamInputs()">Потврди број екипа</button>
+        <div id="teamNames" class="hidden">
+          <h2>Унеси имена екипа</h2>
+          <div id="teamInputs"></div>
+          <button onclick="createFixtures()">Направи распоред</button>
+        </div>
+      </div>
+
+      <div id="tracker" class="hidden">
+        <button class="reset-button" onclick="confirmReset()">
+          Нови турнир
+        </button>
+        <h2>Утакмице</h2>
+        <div id="fixtures" class="fixture-container"></div>
+
+        <h2>Табела</h2>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Екипа</th>
+                <th>Игр.</th>
+                <th>Поб.</th>
+                <th>Нер.</th>
+                <th>Изг.</th>
+                <th>ДГ</th>
+                <th>ПГ</th>
+                <th>ГР</th>
+                <th>Бод.</th>
+              </tr>
+            </thead>
+            <tbody id="standings"></tbody>
+          </table>
+        </div>
+
+        <details id="tiebreaker-details">
+          <summary>Међусобни скор</summary>
+          <div id="h2h"></div>
+
+          <div id="tiebreaker-table" class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Екипа</th>
+                  <th>Игр.</th>
+                  <th>Поб.</th>
+                  <th>Нер.</th>
+                  <th>Изг.</th>
+                  <th>ДГ</th>
+                  <th>ПГ</th>
+                  <th>ГР</th>
+                  <th>Бод.</th>
+                </tr>
+              </thead>
+              <tbody id="tiebreaker-info"></tbody>
+            </table>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <script>
+      const localStorageKey = 'footballTrackerData';
+      let teams = [];
+      let fixtures = [];
+      let results = [];
+
+      function generateTeamInputs() {
+        const teamCount = document.getElementById('teamCount').value;
+        if (teamCount < 4 || teamCount > 5) {
+          alert('Унеси 4 или 5 екипа.');
+          return;
+        }
+
+        const teamInputsDiv = document.getElementById('teamInputs');
+        teamInputsDiv.innerHTML = '';
+        for (let i = 0; i < teamCount; i++) {
+          const div = document.createElement('div');
+          div.className = 'team-setup';
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.placeholder = `Унеси назив ${i + 1}. екипе`;
+          input.id = `team-${i}`;
+          div.appendChild(input);
+          teamInputsDiv.appendChild(div);
+        }
+        document.getElementById('teamNames').classList.remove('hidden');
+      }
+
+      function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [array[i], array[j]] = [array[j], array[i]];
+        }
+      }
+
+      function createFixtures() {
+        teams = [];
+        const teamInputs = document.querySelectorAll("[id^='team-']");
+        teamInputs.forEach((input) => teams.push(input.value.trim()));
+
+        if (
+          new Set(teams).size !== teams.length ||
+          teams.some((name) => !name)
+        ) {
+          alert('Имена екипа морају бити унесена и морају бити јединствена');
+          return;
+        }
+
+        shuffleArray(teams);
+
+        generateFixtures();
+        saveData();
+        updateStandings();
+        document.getElementById('setup').classList.add('hidden');
+        document.getElementById('tracker').classList.remove('hidden');
+      }
+
+      function confirmReset() {
+        if (
+          confirm(
+            'Јеси ли сигуран да хоћеш да обришеш резултате и покренеш нови турнир? Сви резултати ће бити обрисани!'
+          )
+        ) {
+          resetSetup();
+        }
+      }
+
+      function resetSetup() {
+        localStorage.removeItem(localStorageKey);
+        location.reload();
+      }
+
+      function generateFixtures() {
+        fixtures = [];
+
+        if (teams.length === 4) {
+          fixtures = [
+            [teams[0], teams[3]],
+            [teams[1], teams[2]],
+            [teams[0], teams[1]],
+            [teams[3], teams[2]],
+            [teams[1], teams[3]],
+            [teams[2], teams[0]],
+            [teams[3], teams[0]],
+            [teams[2], teams[1]],
+            [teams[2], teams[3]],
+            [teams[1], teams[0]],
+            [teams[3], teams[1]],
+            [teams[0], teams[2]],
+          ];
+        } else if (teams.length === 5) {
+          fixtures = [
+            [teams[1], teams[4]],
+            [teams[2], teams[3]],
+            [teams[0], teams[1]],
+            [teams[4], teams[2]],
+            [teams[2], teams[0]],
+            [teams[3], teams[4]],
+            [teams[1], teams[2]],
+            [teams[0], teams[3]],
+            [teams[4], teams[0]],
+            [teams[3], teams[1]],
+            [teams[2], teams[4]],
+            [teams[1], teams[0]],
+            [teams[4], teams[3]],
+            [teams[0], teams[2]],
+            [teams[4], teams[1]],
+            [teams[3], teams[2]],
+            [teams[3], teams[0]],
+            [teams[2], teams[1]],
+            [teams[0], teams[4]],
+            [teams[1], teams[3]],
+          ];
+        }
+
+        renderFixtures();
+      }
+
+      function renderFixtures() {
+        const fixturesDiv = document.getElementById('fixtures');
+        fixturesDiv.innerHTML = '';
+
+        fixtures.forEach(([home, away], index) => {
+          // Add a header for every two matches
+          if (index % 2 === 0) {
+            const roundHeader = document.createElement('h4');
+            roundHeader.textContent = `${Math.floor(index / 2) + 1}. коло`;
+            fixturesDiv.appendChild(roundHeader);
+          }
+
+          const div = document.createElement('div');
+          div.className = 'fixture-row';
+          const homeGoals = results[index]?.homeGoals ?? '';
+          const awayGoals = results[index]?.awayGoals ?? '';
+          div.innerHTML = `
+                    <span class="bold home">${home}</span>
+                    <input type="number" min="0" placeholder="0" id="homeGoals-${index}" value="${homeGoals}" oninput="handleResultInput(${index})" />
+                    <span>-</span>
+                    <input type="number" min="0" placeholder="0" id="awayGoals-${index}" value="${awayGoals}" oninput="handleResultInput(${index})" />
+                    <span class="bold away">${away}</span>
+                `;
+          fixturesDiv.appendChild(div);
+        });
+      }
+
+      function handleResultInput(index) {
+        const homeGoalsInput = document.getElementById(`homeGoals-${index}`);
+        const awayGoalsInput = document.getElementById(`awayGoals-${index}`);
+
+        const homeGoals = homeGoalsInput.value;
+        const awayGoals = awayGoalsInput.value;
+
+        if (homeGoals === '' || awayGoals === '') {
+          results[index] = null;
+        } else {
+          results[index] = {
+            home: fixtures[index][0],
+            away: fixtures[index][1],
+            homeGoals: parseInt(homeGoals, 10),
+            awayGoals: parseInt(awayGoals, 10),
+          };
+        }
+
+        updateStandings();
+        saveData();
+      }
+
+      function updateStandings() {
+        const standingsMap = {};
+
+        teams.forEach((team) => {
+          standingsMap[team] = {
+            team,
+            played: 0,
+            won: 0,
+            drawn: 0,
+            lost: 0,
+            gf: 0,
+            ga: 0,
+            gd: 0,
+            points: 0,
+          };
+        });
+
+        results.forEach((result) => {
+          if (!result) return;
+
+          const { home, away, homeGoals, awayGoals } = result;
+
+          standingsMap[home].played += 1;
+          standingsMap[away].played += 1;
+          standingsMap[home].gf += homeGoals;
+          standingsMap[away].gf += awayGoals;
+          standingsMap[home].ga += awayGoals;
+          standingsMap[away].ga += homeGoals;
+
+          standingsMap[home].gd += homeGoals - awayGoals;
+          standingsMap[away].gd += awayGoals - homeGoals;
+
+          if (homeGoals > awayGoals) {
+            standingsMap[home].won += 1;
+            standingsMap[away].lost += 1;
+            standingsMap[home].points += 3;
+          } else if (homeGoals < awayGoals) {
+            standingsMap[away].won += 1;
+            standingsMap[home].lost += 1;
+            standingsMap[away].points += 3;
+          } else {
+            standingsMap[home].drawn += 1;
+            standingsMap[away].drawn += 1;
+            standingsMap[home].points += 1;
+            standingsMap[away].points += 1;
+          }
+        });
+
+        const standingsArray = Object.values(standingsMap);
+
+        // Sort standings by global criteria (points, goal difference, goals scored)
+        standingsArray.sort((a, b) => {
+          if (b.points !== a.points) {
+            return b.points - a.points;
+          }
+
+          if (b.gd !== a.gd) {
+            return b.gd - a.gd;
+          }
+
+          return b.gf - a.gf;
+        });
+
+        // Apply tiebreaker logic if needed
+        const tiedGroups = [];
+        const h2h = [];
+        const reducedStandings = [];
+        let i = 0;
+
+        while (i < standingsArray.length) {
+          const group = [standingsArray[i]];
+          while (
+            i + 1 < standingsArray.length &&
+            standingsArray[i].points === standingsArray[i + 1].points
+          ) {
+            group.push(standingsArray[i + 1]);
+            i++;
+          }
+          if (group.length > 1) tiedGroups.push(group);
+          i++;
+        }
+
+        for (const group of tiedGroups) {
+          const reducedStandingsMap = {};
+
+          // Initialize reduced standings for tied teams
+          group.forEach((team) => {
+            reducedStandingsMap[team.team] = {
+              team: team.team,
+              played: 0,
+              won: 0,
+              drawn: 0,
+              lost: 0,
+              gf: 0,
+              ga: 0,
+              gd: 0,
+              points: 0,
+            };
+          });
+
+          // Populate reduced standings based on matches between tied teams
+          results.forEach((result) => {
+            if (!result) return;
+
+            const { home, away, homeGoals, awayGoals } = result;
+
+            if (reducedStandingsMap[home] && reducedStandingsMap[away]) {
+              reducedStandingsMap[home].played += 1;
+              reducedStandingsMap[away].played += 1;
+              reducedStandingsMap[home].gf += homeGoals;
+              reducedStandingsMap[away].gf += awayGoals;
+              reducedStandingsMap[home].ga += awayGoals;
+              reducedStandingsMap[away].ga += homeGoals;
+
+              reducedStandingsMap[home].gd += homeGoals - awayGoals;
+              reducedStandingsMap[away].gd += awayGoals - homeGoals;
+
+              if (homeGoals > awayGoals) {
+                reducedStandingsMap[home].won += 1;
+                reducedStandingsMap[away].lost += 1;
+                reducedStandingsMap[home].points += 3;
+              } else if (homeGoals < awayGoals) {
+                reducedStandingsMap[away].won += 1;
+                reducedStandingsMap[home].lost += 1;
+                reducedStandingsMap[away].points += 3;
+              } else {
+                reducedStandingsMap[home].drawn += 1;
+                reducedStandingsMap[away].drawn += 1;
+                reducedStandingsMap[home].points += 1;
+                reducedStandingsMap[away].points += 1;
+              }
+            }
+          });
+
+          const reducedStandingsArray = Object.values(reducedStandingsMap);
+
+          if (
+            !reducedStandingsArray.every(
+              (team) => team.played === (group.length - 1) * 2
+            )
+          ) {
+            continue;
+          }
+
+          // Sort reduced standings by the same criteria (points, goal difference, goals scored)
+          reducedStandingsArray.sort((a, b) => {
+            if (b.points !== a.points) {
+              return b.points - a.points;
+            }
+
+            if (b.gd !== a.gd) {
+              return b.gd - a.gd;
+            }
+
+            return b.gf - a.gf;
+          });
+
+          // Log reduced standings for the tied group
+          console.log(
+            'Tiebreaker standings for group:',
+            group.map((t) => t.team)
+          );
+          console.table(reducedStandingsArray);
+
+          if (reducedStandingsArray.length === 2) {
+            h2h.push(reducedStandingsArray);
+          } else if (reducedStandingsArray.length > 2) {
+            reducedStandings.push(reducedStandingsArray);
+          }
+
+          // Reorder only the tied teams in the main standings array
+          const startIndex = standingsArray.findIndex(
+            (t) => t.team === group[0].team
+          );
+          for (let j = 0; j < reducedStandingsArray.length; j++) {
+            const teamName = reducedStandingsArray[j].team;
+            standingsArray[startIndex + j] = group.find(
+              (t) => t.team === teamName
+            );
+          }
+        }
+
+        // Render global standings
+        renderStandings(standingsArray);
+        for (const reducedStanding of reducedStandings) {
+          renderTiebreakerInfo(reducedStanding);
+        }
+
+        renderH2H(h2h);
+
+        const tiebreakerDetails = document.getElementById('tiebreaker-details');
+        const tiebreakerTable = document.getElementById('tiebreaker-table');
+        if (reducedStandings.length === 0 && h2h.length === 0) {
+          tiebreakerDetails.classList.add('hidden');
+        } else {
+          tiebreakerDetails.classList.remove('hidden');
+
+          if (reducedStandings.length === 0) {
+            tiebreakerTable.classList.add('hidden');
+          } else {
+            tiebreakerTable.classList.remove('hidden');
+          }
+        }
+      }
+
+      function renderStandings(standings) {
+        const standingsBody = document.getElementById('standings');
+        standingsBody.innerHTML = '';
+
+        standings.forEach((team, index) => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td class="bold">${team.team}</td>
+                    <td>${team.played}</td>
+                    <td>${team.won}</td>
+                    <td>${team.drawn}</td>
+                    <td>${team.lost}</td>
+                    <td>${team.gf}</td>
+                    <td>${team.ga}</td>
+                    <td>${team.gd}</td>
+                    <td>${team.points}</td>
+                `;
+          standingsBody.appendChild(row);
+        });
+      }
+
+      function renderTiebreakerInfo(standings) {
+        const tiebreakerInfo = document.getElementById('tiebreaker-info');
+        tiebreakerInfo.innerHTML = '';
+
+        standings.forEach((team, index) => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td class="bold">${team.team}</td>
+                    <td>${team.played}</td>
+                    <td>${team.won}</td>
+                    <td>${team.drawn}</td>
+                    <td>${team.lost}</td>
+                    <td>${team.gf}</td>
+                    <td>${team.ga}</td>
+                    <td>${team.gd}</td>
+                    <td>${team.points}</td>
+                `;
+          tiebreakerInfo.appendChild(row);
+        });
+      }
+
+      function renderH2H(h2h) {
+        const h2hDiv = document.getElementById('h2h');
+        h2hDiv.innerHTML = '';
+
+        if (h2h.length) {
+          h2h
+            .map(([t1, t2]) => `${t1.team} ${t1.gf} - ${t2.gf} ${t2.team}`)
+            .forEach(renderH2H);
+
+          function renderH2H(element, index, arr) {
+            var p = document.createElement('p');
+            h2hDiv.appendChild(p);
+            p.innerHTML = p.innerHTML + element;
+          }
+        }
+      }
+
+      function saveData() {
+        const data = {
+          teams,
+          fixtures,
+          results,
+        };
+        localStorage.setItem(localStorageKey, JSON.stringify(data));
+      }
+
+      function loadData() {
+        const data = JSON.parse(localStorage.getItem(localStorageKey));
+        if (!data) return;
+
+        teams = data.teams;
+        fixtures = data.fixtures;
+        results = data.results;
+
+        if (teams.length > 0) {
+          document.getElementById('setup').classList.add('hidden');
+          document.getElementById('tracker').classList.remove('hidden');
+          renderFixtures();
+          updateStandings();
+        }
+      }
+
+      window.onload = loadData;
+    </script>
+  </body>
+</html>
